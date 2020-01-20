@@ -1,0 +1,15 @@
+# Virtualenv
+venv
+
+# Database
+cantina.sqlite
+schedule.sqlite
+
+# XLSX file
+workbook.xlsx
+
+# Caches
+__pycache__
+
+# Visual Studio Code configuration
+.vscode

@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<nav class="navbar">
+
+    <div class="container">
+        <div id="navbarMenuHeroA" class="navbar-brand is-active" className="navbar-brand">
+            <div class="navbar-end">
+                {% if current_user.username == 'admin' %}
+                <a href="{{ url_for('admin', cat='users_add') }}" class="navbar-item">Ajout d'utilisateurs</a>
+                <a href="{{ url_for('admin', cat='users_del') }}" class="navbar-item">Suppression d'utilisateurs</a>
+                <a href="{{ url_for('admin', cat='configuration') }}" class="navbar-item">Configuration</a>
+                <a href="{{ url_for('admin', cat='export') }}" class="navbar-item">Export</a>
+                {% endif %}
+        </div>
+    </div>
+</nav>
+
+{% if category == 'users_del' %}
+<h1 class="subtitle">Utilisateurs enregistrés</h1>
+
+<form method="POST">
+<div class="columns is-mobile is-multiline is-centered is-gapless box">
+<br />
+    {% for user in userlist %}
+        <div class="column is-one-quarter is-primary has-text-left">
+        <label class="checkbox">
+        <input type="checkbox" name={{user.username}}> {{user.name}}
+        </label>
+        </div>
+    {% endfor %}
+</div>
+<input type="submit" value='Supprimer les utilisateurs sélectionnés'>
+<br />
+</form>
+{% endif %}
+
+{% if category == 'users_add' %}
+<form method="POST">
+    {{ form.hidden_tag() }}
+    <p>
+        <h1 class="subtitle">{{ form.userlist.label }}</h1><br>
+        {{ form.userlist(style="width: 768px; height: 264px;") }}
+    </p>
+    <p>{{ form.submit() }}</p>
+</form>
+{% endif %}
+
+{% if category == 'export' %}
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    <ul class=flashes>
+    {% for message in messages %}
+      <li>{{ message }}</li>
+    {% endfor %}
+    </ul>
+    <br>
+  {% endif %}
+{% endwith %}
+<form method='POST'>
+<br>
+<div class="columns is-one-quarter is-centered">
+<div class="box">
+<h1><b>Téléchargement des données</b></h1>
+<br>
+Type de réservation
+<table class="table is-bordered is-striped is-narrow is-hoverable">
+
+    <tr>
+        <td>
+            <label class="radio"><input type="radio" name="booking_type" value="cantine"> Cantine
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <label class="radio"><input type="radio" name="booking_type" value="garderie_matin"> Garderie du matin
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <label class="radio"><input type="radio" name="booking_type" value="garderie_soir"> Garderie du soir
+        </td>
+    </tr>
+</table>
+
+Période
+<table class="table is-bordered is-striped is-narrow is-hoverable">
+
+{% for period in periods %}
+<tr class="tr">
+    <td class="td">
+        <label class="radio">
+            <input type='radio' name='period' value="{{period}}"> Période {{period}} du {{periods[period]['begin_pretty']}} au {{periods[period]['end_pretty']}}<br>
+        </label>
+    </td>
+</tr>
+{% endfor %}
+
+</table>
+<input type="submit" value="Télécharger">
+</div>
+</div>
+</form>
+{% endif %}
+
+{% if category == 'configuration' %}
+<br>
+<div class="box">
+
+<form method="POST">
+<table class="table">
+
+{% for c in data %}
+<tr>
+    <td>{{c.config_text}}</td>
+    <td><input type="text" name="{{c.config_key}}" value="{{app_config[c.config_key]['value']}}"></td>
+</tr>
+{% endfor %}
+</table>
+<input type="submit" value="Sauvegarder">
+</form>
+{% endif %}
+
+{% endblock %}

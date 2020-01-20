@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1 class="title">
+  {% if current_user.username == 'admin' %}
+  Administration Cantina
+  {% else %}
+  Bienvenue {{current_user.name}} !
+  {% endif %}
+</h1>
+{% endblock %}
