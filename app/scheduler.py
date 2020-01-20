@@ -1,3 +1,4 @@
+import sqlalchemy
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask_mail import Mail, Message
 
@@ -13,25 +14,28 @@ def init_scheduler():
     scheduler.add_jobstore('sqlalchemy', url=config.SQLALCHEMY_SCHEDULER_DATABASE_URI)
     scheduler.start()
 
-    app_config = {}
-    for i in db.session.query(Configuration).order_by('config_order'):
-        app_config[i.config_key] = {'order': i.config_order, 'text': i.config_text, 'value': i.value}
-    for config in app_config:
-        if config in ['mail_cantine_time', 'mail_garderie_time']:
-            hour, minute = app_config[config]['value'].split(':')
-            mail_list = app_config[config.replace('_time', '')]['value'].split(' ')
-            args = {}
-            args['mail_list'] = mail_list
-            scheduler.add_job(send_mail,
-                              'cron',
-                              day_of_week='mon-fri',
-                              hour=hour,
-                              minute=minute,
-                              replace_existing=True,
-                              id=config,
-                              kwargs=args)
-    print('Scheduler initialized')
-    return scheduler
+    try:
+        app_config = {}
+        for i in db.session.query(Configuration).order_by('config_order'):
+            app_config[i.config_key] = {'order': i.config_order, 'text': i.config_text, 'value': i.value}
+        for config in app_config:
+            if config in ['mail_cantine_time', 'mail_garderie_time']:
+                hour, minute = app_config[config]['value'].split(':')
+                mail_list = app_config[config.replace('_time', '')]['value'].split(' ')
+                args = {}
+                args['mail_list'] = mail_list
+                scheduler.add_job(send_mail,
+                                  'cron',
+                                  day_of_week='mon-fri',
+                                  hour=hour,
+                                  minute=minute,
+                                  replace_existing=True,
+                                  id=config,
+                                  kwargs=args)
+        print('Scheduler initialized')
+        return scheduler
+    except sqlalchemy.exc.OperationalError:
+        return False
 
 
 def send_mail(mail_list=None, book_cantine=None, book_garderie=None, day=None):
