@@ -43,7 +43,7 @@ def init_scheduler():
 def send_mail(mail_list=None, book_cantine=None, book_garderie=None, day=None):
     with app.app_context():
         mail = Mail(app)
-        day = day[0:4] + '/' + day[5:6] + '/' + day[7:8]
+        day = day[0:4] + '/' + day[4:6] + '/' + day[6:8]
         if book_cantine:
             msg = Message(f'Réservations Cantine pour le {day}',
                           sender='julien@gormotte.info',
