@@ -20,6 +20,8 @@ def init_scheduler():
             app_config[i.config_key] = {'order': i.config_order, 'text': i.config_text, 'value': i.value}
         for config in app_config:
             if config in ['mail_cantine_time', 'mail_garderie_time']:
+                if not app_config[config]['value']:
+                    continue
                 hour, minute = app_config[config]['value'].split(':')
                 mail_list = app_config[config.replace('_time', '')]['value'].split(' ')
                 args = {}
