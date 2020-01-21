@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div class="control">
+    <form action='/booking_admin' method="GET">
+      <label for="user">Utilisateur :</label>
+      <div class="select">
+      <select name="user" id="user">
+          {% for user in userlist %}
+          <option value="{{user}}"{%if user == selected_user%} selected{%endif%}>{{user}}</option>
+          {% endfor %}
+      </select>
+      </div>
+      <div class="select">
+      <select name="cat" id="cat">
+          {% for cat in ["cantine", "garderie_matin", "garderie_soir"]%}
+          {{cat}}/{{booking_type}}
+          <option value="{{cat}}"{%if cat == booking_type%} selected{%endif%}>{{cat}}</option>
+          {%endfor%}
+      </select>
+      </div>
+
+      <button class="button is-link" type="submit">Valider</button>
+    </form>
+  </div>
+{% if selected_user %}
+<form method="POST">
+
+<div class="field is-grouped">
+  <div class="control">
+    <button class="button is-link" type="submit">Enregistrer les réservations</button>
+  </div>
+</div>
+<div class="table-container">
+<table class="table table is-bordered is-striped is-narrow is-hoverable is-fullwidth">
+  <thead>
+    <tr>
+      <th>Mois</th>
+      <th>Semaine</th>
+      <th>Lun</th>
+      <th>Mar</th>
+      <th>Mer</th>
+      <th>Jeu</th>
+      <th>Ven</th>
+      <th>Sam</th>
+      <th>Dim</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for week in calendar %}
+      <tr class="tr{%if week == current_week + 1%} is-selected{%endif%}">
+        <td>{{calendar[week][0]['month']}}</td>
+        <td>{{week}}</td>
+        {% for day in calendar[week] %}
+          <td>
+            <label class="checkbox">
+            <input type="checkbox" name={{day['date']}}{%if day['date'] in booked%} checked{%endif%}>
+            {{day['day']}}
+            </label>
+          </td>
+        {%endfor%}
+      </tr>
+    {%endfor%}
+  </tbody>
+</table>
+</form>
+{%endif%}
+
+{% endblock %}

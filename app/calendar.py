@@ -15,7 +15,7 @@ SCHOOL_CALENDAR = 'https://cache.media.education.gouv.fr/ics/Calendrier_Scolaire
 NON_WORKING_DAYS = [3]
 
 
-def getBookedData(booking_type, username):
+def getBookedData(booking_type, username=None):
     booking_data = booking_type.query.filter(booking_type.username == username).scalar()
     if booking_data:
         return booking_data.booked.split()

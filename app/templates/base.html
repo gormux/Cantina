@@ -24,6 +24,7 @@
                             <a href="{{ url_for('menu') }}" class="navbar-item">Menu</a>
                             {% if current_user.username == 'admin' %}
                             <a href="{{ url_for('admin') }}" class="navbar-item">Administration</a>
+                            <a href="{{ url_for('booking_admin', cat='cantine') }}" class="navbar-item">Réservations</a>
                             {% endif %}
                             {% if current_user.is_anonymous %}
                             <a href="{{ url_for('login') }}" class="navbar-item">Se connecter</a>

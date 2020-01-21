@@ -12,6 +12,7 @@
                 <a href="{{ url_for('admin', cat='users_del') }}" class="navbar-item">Suppression d'utilisateurs</a>
                 <a href="{{ url_for('admin', cat='configuration') }}" class="navbar-item">Configuration</a>
                 <a href="{{ url_for('admin', cat='export') }}" class="navbar-item">Export</a>
+                <a href="{{ url_for('admin', cat='manual') }}" class="navbar-item">Editer manuellement</a>
                 {% endif %}
         </div>
     </div>
@@ -121,5 +122,4 @@ Période
 <input type="submit" value="Sauvegarder">
 </form>
 {% endif %}
-
 {% endblock %}

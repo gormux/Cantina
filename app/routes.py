@@ -247,3 +247,56 @@ def savebooking():
         db.session.add(new_data)
     db.session.commit()
     return redirect('/booking?cat=%s' % category)
+
+
+@app.route('/booking_admin', methods=['GET'])
+@login_required
+def booking_admin():
+    if current_user != 'admin':
+        redirect('/logout')
+    userlist = [u.name for u in User.query.filter(User.username != 'admin').all()]
+    if 'user' not in request.args.keys():
+        selected_user = None
+    else:
+        selected_user = request.args['user']
+    if 'cat' not in request.args.keys():
+        category = 'cantine'
+    else:
+        category = request.args['cat']
+    if not selected_user:
+        return render_template('booking_admin.html',
+                               selected_user=selected_user,
+                               booking_type=category,
+                               userlist=userlist)
+    else:
+        booked = getBookedData(CATEGORIES[category], selected_user)
+        current_week = arrow.utcnow().isocalendar()[1]
+        return render_template('booking_admin.html',
+                               selected_user=selected_user,
+                               calendar=calendar.calendar,
+                               booking_type=category,
+                               current_week=current_week,
+                               booked=booked,
+                               userlist=userlist)
+
+
+@app.route('/booking_admin', methods=['POST'])
+@login_required
+def savebooking_admin():
+    if current_user != 'admin':
+        redirect('/logout')
+    category = request.args['cat']
+    user = request.args['user']
+    booking_type = CATEGORIES[category]
+    data = [k for k in request.form.keys()]
+    data = ' '.join(sorted(data))
+    new_data = booking_type(username=user, booked=data)
+    q = db.session.execute(f'SELECT * FROM booking_{category} WHERE username = "{user}";')
+    results = [v for v in q.fetchall()]
+    if len(results) != 0:
+        update_data = f'UPDATE booking_{category} SET booked = "{data}" WHERE username = "{user}"'
+        db.session.execute(update_data)
+    else:
+        db.session.add(new_data)
+    db.session.commit()
+    return redirect('/booking_admin?cat=%s&user=%s' % (category, user))
