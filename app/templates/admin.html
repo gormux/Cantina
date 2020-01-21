@@ -2,7 +2,6 @@
 
 {% block content %}
 
-<nav class="navbar">
 
     <div class="container">
         <div id="navbarMenuHeroA" class="navbar-brand is-active" className="navbar-brand">
@@ -12,6 +11,7 @@
                 <a href="{{ url_for('admin', cat='users_del') }}" class="navbar-item">Suppression d'utilisateurs</a>
                 <a href="{{ url_for('admin', cat='configuration') }}" class="navbar-item">Configuration</a>
                 <a href="{{ url_for('admin', cat='export') }}" class="navbar-item">Export</a>
+                {% endif %}
         </div>
     </div>
 </nav>
