@@ -48,7 +48,7 @@
   </thead>
   <tbody>
     {% for week in calendar %}
-      <tr class="tr{%if week == current_week + 1%} is-selected{%endif%}">
+      <tr class="tr{%if week == current_week %} is-selected{%endif%}">
         <td>{{calendar[week][0]['month']}}</td>
         <td>{{week}}</td>
         {% for day in calendar[week] %}
