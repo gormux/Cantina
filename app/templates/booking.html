@@ -49,7 +49,7 @@
         <td>{{week}}</td>
         {% for day in calendar[week] %}
           <td>
-            <label class="checkbox" {%if not day['bookable_' + booking_type] or day['past']%}disabled{%endif%}>
+            <label class="checkbox" {%if not day['bookable_' + booking_type]%}disabled{%endif%}>
             <input type="checkbox" name={{day['date']}}{%if not day['bookable_' + booking_type]%} disabled{%endif%}{%if day['date'] in booked%} checked{%endif%}>
             {{day['day']}}
             </label>

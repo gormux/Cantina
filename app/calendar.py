@@ -90,13 +90,13 @@ class Calendar:
                 school_calendar[week_number] = []
                 current_week = school_calendar[week_number]
             past_cantine = current < arrow.now().shift(days=+2)
-            past_garderie = current < arrow.now().shift(days=+1)
+            past_garderie = current < arrow.now()
             month = current.strftime('%B').capitalize()
             data = {'day': day, 'month': month, 'date': current.strftime('%Y%m%d')}
             # If one of these is past, then save immediately
             data['bookable_cantine'] = not past_cantine
             data['bookable_garderie'] = not past_garderie
-            if not data['bookable_cantine'] or not data['bookable_garderie']:
+            if not data['bookable_cantine'] and not data['bookable_garderie']:
                 current_week.append(data)
                 current = current.shift(days=+1)
                 continue

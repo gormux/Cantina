@@ -196,11 +196,13 @@ def booking():
     booking_type = CATEGORIES[category]
     booked = getBookedData(booking_type, current_user.name)
     current_week = arrow.utcnow().isocalendar()[1]
+    if 'garderie' in category:
+        category = 'garderie'
     return render_template('booking.html',
                            name=current_user.name,
                            calendar=calendar.calendar,
                            booked=booked,
-                           booking_type='cantine',
+                           booking_type=category,
                            current_week=current_week)
 
 
