@@ -230,8 +230,12 @@ def savebooking():
         data = []
     else:
         data = [k for k in request.form.keys()]
+    if 'garderie' in category:
+        delay = 1
+    else:
+        delay = 2
     for day in booked:
-        if int(day) < today + 2:
+        if int(day) < today + delay:
             data.append(day)
     data = ' '.join(sorted(data))
     if category == 'cantine':
