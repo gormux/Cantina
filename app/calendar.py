@@ -103,14 +103,17 @@ class Calendar:
             if current.isoweekday() in NON_WORKING_DAYS or current.isoweekday() in [6, 7]:
                 data['bookable_cantine'] = False
                 data['bookable_garderie'] = False
+                data['bookable'] = False
                 current_week.append(data)
             elif len([i for i in timeline.at(current)]) > 0:
                 data['bookable_cantine'] = False
                 data['bookable_garderie'] = False
+                data['bookable'] = False
                 current_week.append(data)
             elif current < school_begin:
                 data['bookable_cantine'] = False
                 data['bookable_garderie'] = False
+                data['bookable'] = False
                 current_week.append(data)
             else:
                 data['bookable'] = True
