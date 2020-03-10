@@ -11,10 +11,7 @@ from app.forms import LoginForm, UserAddForm
 from app.models import User, BookingCantine, BookingGarderieMatin, BookingGarderieSoir, Configuration
 from app.calendar import Calendar, getBookedData
 from app.export import create_xls
-from app.scheduler import init_scheduler, send_mail
 from docx import Document
-
-scheduler_instance = init_scheduler()
 
 calendar = Calendar(2019)
 
@@ -178,14 +175,6 @@ def admin():
                         booked['Garderie Soir'] = book
                         args['book_garderie'] = booked
 
-                    scheduler_instance.add_job(send_mail,
-                                               'cron',
-                                               day_of_week='mon-fri',
-                                               hour=hour,
-                                               minute=minute,
-                                               replace_existing=True,
-                                               id=item,
-                                               kwargs=args)
     return render_template('admin.html')
 
 
