@@ -53,3 +53,6 @@ XlsxWriter = "==1.2.7"
 
 [requires]
 python_version = "3.8"
+
+[scripts]
+server = "python cantina-admin.py"
