@@ -13,7 +13,7 @@ from app.calendar import Calendar, getBookedData
 from app.export import create_xls
 from docx import Document
 
-calendar = Calendar(2019)
+calendar = Calendar(2020)
 
 CATEGORIES = {'cantine': BookingCantine,
               'garderie_matin': BookingGarderieMatin,
