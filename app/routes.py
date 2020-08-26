@@ -87,7 +87,11 @@ def admin():
                 db.session.add(u)
                 db.session.commit()
             document.save('/tmp/Liste.docx')
-            return send_file('/tmp/Liste.docx')
+            return send_file('/tmp/Liste.docx',
+                             mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                             attachment_filename='Liste.docx',
+                             as_attachment=True
+                            )
         return render_template('admin.html',
                                category=category,
                                form=form)
