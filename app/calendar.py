@@ -6,12 +6,16 @@ from ics import Calendar as icsCalendar, Event
 from requests import Session
 import arrow
 from pprint import pprint as pp  # noqa
+
 # from app import db
 
 import locale
+
 locale.setlocale(locale.LC_ALL, "fr_FR.UTF-8")
 
-SCHOOL_CALENDAR = 'https://cache.media.education.gouv.fr/ics/Calendrier_Scolaire_Zone_B.ics'
+SCHOOL_CALENDAR = (
+    "https://cache.media.education.gouv.fr/ics/Calendrier_Scolaire_Zone_B.ics"
+)
 NON_WORKING_DAYS = [3]
 
 
@@ -47,7 +51,10 @@ class Calendar:
 
         # Define begin/end of the school year we are in
         for event in edu_calendar.events:
-            if 'Rentrée scolaire des élèves' in event.name and event.begin.year == school_year:
+            if (
+                "Rentrée scolaire des élèves" in event.name
+                and event.begin.year == school_year
+            ):
                 school_begin = event.begin
                 continue
             if "Vacances d'été" in event.name and event.begin.year == school_year + 1:
@@ -91,47 +98,56 @@ class Calendar:
                 current_week = school_calendar[week_number]
             past_cantine = current < arrow.now().shift(days=+2)
             past_garderie = current < arrow.now()
-            month = current.strftime('%B').capitalize()
-            data = {'day': day, 'month': month, 'date': current.strftime('%Y%m%d')}
+            month = current.strftime("%B").capitalize()
+            data = {"day": day, "month": month, "date": current.strftime("%Y%m%d")}
             # If one of these is past, then save immediately
-            data['bookable_cantine'] = not past_cantine
-            data['bookable_garderie'] = not past_garderie
-            if not data['bookable_cantine'] and not data['bookable_garderie']:
+            data["bookable_cantine"] = not past_cantine
+            data["bookable_garderie"] = not past_garderie
+            if not data["bookable_cantine"] and not data["bookable_garderie"]:
                 current_week.append(data)
                 current = current.shift(days=+1)
                 continue
-            if current.isoweekday() in NON_WORKING_DAYS or current.isoweekday() in [6, 7]:
-                data['bookable_cantine'] = False
-                data['bookable_garderie'] = False
-                data['bookable'] = False
+            if current.isoweekday() in NON_WORKING_DAYS or current.isoweekday() in [
+                6,
+                7,
+            ]:
+                data["bookable_cantine"] = False
+                data["bookable_garderie"] = False
+                data["bookable"] = False
                 current_week.append(data)
             elif len([i for i in timeline.at(current)]) > 0:
-                data['bookable_cantine'] = False
-                data['bookable_garderie'] = False
-                data['bookable'] = False
+                data["bookable_cantine"] = False
+                data["bookable_garderie"] = False
+                data["bookable"] = False
                 current_week.append(data)
             elif current < school_begin:
-                data['bookable_cantine'] = False
-                data['bookable_garderie'] = False
-                data['bookable'] = False
+                data["bookable_cantine"] = False
+                data["bookable_garderie"] = False
+                data["bookable"] = False
                 current_week.append(data)
             else:
-                data['bookable'] = True
+                data["bookable"] = True
                 current_week.append(data)
             current = current.shift(days=+1)
         # Create set of periods
         i = 1
-        periods = {i: {'begin': school_begin.format('YYYYMMDD'),
-                       'begin_pretty': school_begin.format('DD/MM/YYYY')}}
+        periods = {
+            i: {
+                "begin": school_begin.format("YYYYMMDD"),
+                "begin_pretty": school_begin.format("DD/MM/YYYY"),
+            }
+        }
         for event in sorted(edu_calendar.events):
             if event.begin > school_end:
                 continue
-            if 'Vacances' in event.name:
-                periods[i]['end'] = event.begin.format('YYYYMMDD')
-                periods[i]['end_pretty'] = event.begin.format('DD/MM/YYYY')
+            if "Vacances" in event.name:
+                periods[i]["end"] = event.begin.format("YYYYMMDD")
+                periods[i]["end_pretty"] = event.begin.format("DD/MM/YYYY")
                 i += 1
-                periods[i] = {'begin': event.end.format('YYYYMMDD'),
-                              'begin_pretty': event.end.format('DD/MM/YYYY')}
+                periods[i] = {
+                    "begin": event.end.format("YYYYMMDD"),
+                    "begin_pretty": event.end.format("DD/MM/YYYY"),
+                }
         periods.pop(i)
         self.periods = periods
         self.calendar = school_calendar
