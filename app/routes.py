@@ -7,7 +7,7 @@ from flask import flash, redirect, render_template, request, url_for, send_file
 from flask_login import current_user, login_required, login_user, logout_user
 
 from app import app, db
-from app.forms import LoginForm, UserAddForm
+from app.forms import LoginForm, UserAddForm, UserModForm
 from app.models import (
     User,
     BookingCantine,
@@ -77,10 +77,7 @@ def logout():
 def admin():
     if current_user.username != "admin":
         return redirect(url_for("logout"))
-    if "cat" in request.args.keys():
-        category = request.args["cat"]
-    else:
-        category = None
+    category = request.args["cat"] if "cat" in request.args.keys() else None
     if category == "users_add":
         form = UserAddForm()
         if form.validate_on_submit():
@@ -105,6 +102,32 @@ def admin():
                 as_attachment=True,
             )
         return render_template("admin.html", category=category, form=form)
+    elif category == "user_mod":
+        form = UserModForm()
+        if request.method == "GET":
+            return render_template("admin.html", category=category, user=current_user, form=form)
+        elif request.method == "POST":
+            if form.validate_on_submit():
+                new_password = request.form["userpass"]
+                print(len(new_password))
+                if "delete_user" in request.form.keys() and request.form["delete_user"] == "y":
+                    flash("Pas encore supporté !")
+                elif len(new_password) > 6:
+                    print('dans la fonction pass')
+                    user_name = request.args["user"]
+                    print(user_name)
+                    user = User.query.filter(User.username == user_name).all()[0]
+                    print(user.name)
+                    user.set_password(new_password)
+                    print("pass chang")
+                    db.session.add(user)
+                    db.session.commit()
+                    print("commit fait")
+                    flash(f'Mot de passe mis à jour pour {user.username}')
+                else:
+                    print("mdp incorrect")
+                    flash("Le mot de passe doit faire au minimum 6 caractères")
+                return redirect(request.referrer)
     elif category == "users_del":
         if request.method == "POST":
             for user in request.form:
@@ -148,7 +171,11 @@ def admin():
                     "admin.html", category=category, periods=calendar.periods
                 )
             create_xls(data)
-            return send_file("/tmp/workbook.xlsx")
+            cat = request.form.get("booking_type")
+            return send_file("/tmp/workbook.xlsx",
+                             attachment_filename=f"Réservations_{cat}_période_{period}.xlsx",
+                             as_attachment=True
+                             )
     elif category == "configuration":
         if request.method == "GET":
             data = db.session.query(Configuration).order_by("config_order")
@@ -170,8 +197,7 @@ def admin():
                         .filter(Configuration.config_key == conf_name)
                         .first()
                     )
-                    args = {}
-                    args["mail_list"] = m.value.split()
+                    args = {"mail_list": m.value.split()}
                     if arrow.now().isoweekday() == 5:
                         day = arrow.now().shift(days=+3).format("YYYYMMDD")
                     else:
@@ -238,7 +264,7 @@ def savebooking():
                     if day["bookable_cantine"]:
                         print("ajouter cantine", day["date"])
                         data.append(day["date"])
-                elif category == "garderie_matin" or category == "garderie_soir":
+                elif category in ["garderie_matin", "garderie_soir"]:
                     if day["bookable_garderie"]:
                         print("ajouter garderie", category, day["date"])
                         data.append(day["date"])
@@ -246,10 +272,7 @@ def savebooking():
         data = []
     else:
         data = [k for k in request.form.keys()]
-    if "garderie" in category:
-        delay = 1
-    else:
-        delay = 2
+    delay = 1 if "garderie" in category else 2
     for day in booked:
         if int(day) < today + delay:
             data.append(day)
@@ -264,11 +287,11 @@ def savebooking():
         f'SELECT * FROM booking_{category} WHERE username = "{current_user.name}";'
     )
     results = [v for v in q.fetchall()]
-    if len(results) != 0:
+    if not results:
+        db.session.add(new_data)
+    else:
         update_data = f'UPDATE booking_{category} SET booked = "{data}" WHERE username = "{current_user.name}"'
         db.session.execute(update_data)
-    else:
-        db.session.add(new_data)
     db.session.commit()
     return redirect("/booking?cat=%s" % category)
 
@@ -323,12 +346,12 @@ def savebooking_admin():
         f'SELECT * FROM booking_{category} WHERE username = "{user}";'
     )
     results = [v for v in q.fetchall()]
-    if len(results) != 0:
+    if not results:
+        db.session.add(new_data)
+    else:
         update_data = (
             f'UPDATE booking_{category} SET booked = "{data}" WHERE username = "{user}"'
         )
         db.session.execute(update_data)
-    else:
-        db.session.add(new_data)
     db.session.commit()
     return redirect("/booking_admin?cat=%s&user=%s" % (category, user))

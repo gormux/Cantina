@@ -13,3 +13,9 @@ class LoginForm(FlaskForm):
 class UserAddForm(FlaskForm):
     userlist = TextAreaField("Utilisateurs à ajouter")
     submit = SubmitField("Créer les utilisateurs")
+
+
+class UserModForm(FlaskForm):
+    userpass = TextAreaField("Nouveau mot de passe")
+    delete_user = BooleanField("Supprimer l'utilisateur")
+    submit = SubmitField("Enregistrer")

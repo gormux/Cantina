@@ -50,12 +50,13 @@ def create_xls(booking_data):
     # First add per-user formula
     row += 1
     worksheet.write(row, 0, "Total")
-    for user in all_users:
+    for user, value_ in all_users.items():
         col_name = alphabet[all_users[user]]
         value = len([day for day in booking_data if user in booking_data[day]])
         worksheet.write_formula(
-            row, all_users[user], f"=SUM({col_name}2:{col_name}{row})", value=value
+            row, value_, f"=SUM({col_name}2:{col_name}{row})", value=value
         )
+
 
     # Next per day
     for row in range(2, row + 1):

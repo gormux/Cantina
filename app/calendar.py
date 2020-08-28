@@ -138,6 +138,8 @@ class Calendar:
             }
         }
         for event in sorted(edu_calendar.events):
+            if event.begin < school_begin:
+                continue
             if event.begin > school_end:
                 continue
             if "Vacances" in event.name:
