@@ -57,7 +57,6 @@ def create_xls(booking_data):
             row, value_, f"=SUM({col_name}2:{col_name}{row})", value=value
         )
 
-
     # Next per day
     for row in range(2, row + 1):
         worksheet.write_formula(

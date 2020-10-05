@@ -19,13 +19,14 @@ from app.calendar import Calendar, getBookedData
 from app.export import create_xls
 from docx import Document
 
-calendar = Calendar(2020)
-
 CATEGORIES = {
     "cantine": BookingCantine,
     "garderie_matin": BookingGarderieMatin,
     "garderie_soir": BookingGarderieSoir,
 }
+
+
+calendar = Calendar(2020)
 
 
 @app.context_processor
@@ -91,7 +92,10 @@ def admin():
                 letters = string.ascii_lowercase
                 password = "".join(random.choice(letters) for i in range(10))
                 u.set_password(password)
-                document.add_paragraph(f"{u.username} : {password}")
+                document.add_paragraph(f"Voici vos informations pour accéder à Cantina :\n"
+                                       "Adresse du site : https://cantina.sivu-2vallees.fr/\n"
+                                       f"Nom d'utilisateur : {u.username}\n"
+                                       f"Mot de passe : {password}\n")
                 db.session.add(u)
                 db.session.commit()
             document.save("/tmp/Liste.docx")
@@ -105,15 +109,20 @@ def admin():
     elif category == "user_mod":
         form = UserModForm()
         if request.method == "GET":
-            return render_template("admin.html", category=category, user=current_user, form=form)
+            return render_template(
+                "admin.html", category=category, user=current_user, form=form
+            )
         elif request.method == "POST":
             if form.validate_on_submit():
                 new_password = request.form["userpass"]
                 print(len(new_password))
-                if "delete_user" in request.form.keys() and request.form["delete_user"] == "y":
+                if (
+                    "delete_user" in request.form.keys()
+                    and request.form["delete_user"] == "y"
+                ):
                     flash("Pas encore supporté !")
                 elif len(new_password) > 6:
-                    print('dans la fonction pass')
+                    print("dans la fonction pass")
                     user_name = request.args["user"]
                     print(user_name)
                     user = User.query.filter(User.username == user_name).all()[0]
@@ -123,7 +132,7 @@ def admin():
                     db.session.add(user)
                     db.session.commit()
                     print("commit fait")
-                    flash(f'Mot de passe mis à jour pour {user.username}')
+                    flash(f"Mot de passe mis à jour pour {user.username}")
                 else:
                     print("mdp incorrect")
                     flash("Le mot de passe doit faire au minimum 6 caractères")
@@ -172,10 +181,11 @@ def admin():
                 )
             create_xls(data)
             cat = request.form.get("booking_type")
-            return send_file("/tmp/workbook.xlsx",
-                             attachment_filename=f"Réservations_{cat}_période_{period}.xlsx",
-                             as_attachment=True
-                             )
+            return send_file(
+                "/tmp/workbook.xlsx",
+                attachment_filename=f"Réservations_{cat}_période_{period}.xlsx",
+                as_attachment=True,
+            )
     elif category == "configuration":
         if request.method == "GET":
             data = db.session.query(Configuration).order_by("config_order")
@@ -232,6 +242,7 @@ def admin():
 @app.route("/booking", methods=["GET"])
 @login_required
 def booking():
+    calendar = Calendar(2020)
     category = request.args["cat"]
     booking_type = CATEGORIES[category]
     booked = getBookedData(booking_type, current_user.name)
@@ -251,27 +262,40 @@ def booking():
 @app.route("/booking", methods=["POST"])
 @login_required
 def savebooking():
+    calendar = Calendar(2020)
     today = int(arrow.now().strftime("%Y%m%d"))
     category = request.args["cat"]
     booking_type = CATEGORIES[category]
     booked = getBookedData(booking_type, current_user.name)
-    if "selectall" in request.form.keys():
+
+    def keep_passed_bookings():
         data = []
+        for b in booked:
+            current = arrow.get(b, "YYYYMMDD")
+            day = next(d for d in calendar.calendar[current.week] if d["date"] == b)
+            if not day["bookable_cantine"] and category == "cantine":
+                data.append(b)
+            if not day["bookable_garderie"] and category in [
+                "garderie_matin",
+                "garderie_soir",
+            ]:
+                data.append(b)
+        return data
+
+    if "selectall" in request.form.keys():
+        data = keep_passed_bookings()
         for week in calendar.calendar:
             for day in calendar.calendar[week]:
-                print(day)
                 if category == "cantine":
                     if day["bookable_cantine"]:
-                        print("ajouter cantine", day["date"])
                         data.append(day["date"])
                 elif category in ["garderie_matin", "garderie_soir"]:
                     if day["bookable_garderie"]:
-                        print("ajouter garderie", category, day["date"])
                         data.append(day["date"])
     elif "selectnone" in request.form.keys():
-        data = []
+        data = keep_passed_bookings()
     else:
-        data = [k for k in request.form.keys()]
+        data = keep_passed_bookings() + [k for k in request.form.keys()]
     delay = 1 if "garderie" in category else 2
     for day in booked:
         if int(day) < today + delay:

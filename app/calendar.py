@@ -13,9 +13,6 @@ import locale
 
 locale.setlocale(locale.LC_ALL, "fr_FR.UTF-8")
 
-SCHOOL_CALENDAR = (
-    "https://cache.media.education.gouv.fr/ics/Calendrier_Scolaire_Zone_B.ics"
-)
 NON_WORKING_DAYS = [3]
 
 
@@ -42,9 +39,8 @@ class Calendar:
         school_calendar = {}
 
         # Get holidays from National Education Ministry
-        session = Session()
-        response = session.get(SCHOOL_CALENDAR)
-        edu_calendar = icsCalendar(response.text)
+        with open("Calendrier_Scolaire_Zone_B.ics", "r") as cal:
+            edu_calendar = icsCalendar(cal.read())
 
         # Initialize days off ICS calendar
         days_off_school = icsCalendar()
@@ -85,6 +81,14 @@ class Calendar:
         # Create timeline object
         timeline = days_off_school.timeline
 
+        def get_last_tue(date):
+            while date.weekday() != 1:
+                date = date.shift(days=-1)
+            return date
+
+        def set_end(date):
+            return date.replace(hour=16, minute=30, second=0, microsecond=0)
+
         # Now create dict of all days of school year and status
         # ordered by week number
         current = school_begin
@@ -96,7 +100,14 @@ class Calendar:
             if week_number not in school_calendar.keys():
                 school_calendar[week_number] = []
                 current_week = school_calendar[week_number]
-            past_cantine = current < arrow.now().shift(days=+2)
+
+            # Limite cantine
+            limit = set_end(
+                get_last_tue(
+                    current.shift(weeks=-1) if current.weekday() >= 1 else current
+                )
+            )
+            past_cantine = arrow.now() > limit
             past_garderie = current < arrow.now()
             month = current.strftime("%B").capitalize()
             data = {"day": day, "month": month, "date": current.strftime("%Y%m%d")}

@@ -58,3 +58,4 @@ python_version = "3.8"
 [scripts]
 init_db = "bash init_db.sh"
 server = "python cantina-admin.py"
+send= "python send.py"
