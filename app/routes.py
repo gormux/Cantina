@@ -123,7 +123,11 @@ def admin():
                     "delete_user" in request.form.keys()
                     and request.form["delete_user"] == "y"
                 ):
-                    flash("Pas encore supporté !")
+                    user_name = request.args["user"]
+                    user = User.query.filter(User.username == user_name).all()[0]
+                    db.session.delete(user)
+                    db.session.commit()
+                    flash("Utilisateur supprimé !")
                 elif len(new_password) > 6:
                     user_name = request.args["user"]
                     user = User.query.filter(User.username == user_name).all()[0]
