@@ -1,5 +1,6 @@
-import xlsxwriter
 import datetime
+
+import xlsxwriter
 
 alphabet = list("abcdefghijklmnopqrstuvwxyz".upper())
 

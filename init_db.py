@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from app import db
-from app.models import User, Configuration
+from app.models import Configuration, User
 from config import Config
 
 config = Config()

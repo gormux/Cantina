@@ -1,9 +1,11 @@
-from app.routes import CATEGORIES
-import arrow
-import sys
 import smtplib
+import sys
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+
+import arrow
+
+from app.routes import CATEGORIES
 
 # Dictionnaire des données
 data = {}
@@ -31,7 +33,9 @@ def create_message():
         next_week = arrow.now().shift(weeks=1).week
 
         # Préparation du contenu des mails
-        msg = f"Liste des élèves présents à la cantine pour la semaine {next_week} :\n\n"
+        msg = (
+            f"Liste des élèves présents à la cantine pour la semaine {next_week} :\n\n"
+        )
         msg_api = (
             f"Bonjour,\n\nVoici la commande des repas pour la semaine {next_week} :\n\n"
         )
@@ -53,11 +57,11 @@ def create_message():
         msg = f"Liste des élèves étant prévus à la garderie le {today}:\n"
         if today in data["garderie_matin"]:
             msg += "\n- Le matin :\n"
-            msg += "\n".join([u for u in data["garderie_matin"][today]])
+            msg += "\n".join(data["garderie_matin"][today])
             msg += "\n"
         if today in data["garderie_soir"]:
             msg += "\n- Le soir :\n"
-            msg += "\n".join([u for u in data["garderie_soir"][today]])
+            msg += "\n".join(data["garderie_soir"][today])
             msg += "\n"
 
     if sys.argv[1] == "cantine_api":
@@ -72,7 +76,7 @@ if __name__ == "__main__":
     message = MIMEMultipart()
     msg_from = "cantine@sivu-2vallees.fr"
     msg_to = "cantine@sivu-2vallees.fr"
-    message.attach(MIMEText(mail_content, 'plain'))
+    message.attach(MIMEText(mail_content, "plain"))
     if sys.argv[1] == "cantine_api":
         message["Subject"] = "Réservations de repas pour le RPI des deux vallées"
     elif sys.argv[1] == "cantine":

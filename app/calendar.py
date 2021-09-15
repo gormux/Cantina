@@ -1,19 +1,14 @@
-"""
-Calendar generation
-"""
-from workalendar.europe import France
-from ics import Calendar as icsCalendar, Event
-from requests import Session
-import arrow
-from pprint import pprint as pp  # noqa
-
-# from app import db
-
 import locale
+from datetime import datetime, time, timedelta
+from typing import Dict, List, Tuple
+
+from icalendar import Calendar, Event, vText
+from workalendar.europe import France
 
 locale.setlocale(locale.LC_ALL, "fr_FR.UTF-8")
-
-NON_WORKING_DAYS = [3]
+ZONE_B = vText(b"Zone B")
+HOUR_LIMIT, MIN_LIMIT = (16, 30)
+NO_CLASS = [2, 5, 6]
 
 
 def getBookedData(booking_type, username=None):
@@ -24,143 +19,315 @@ def getBookedData(booking_type, username=None):
         return []
 
 
-class Calendar:
-    """Calendar Object
-    """
+class CantinaCalendar:
+    def __init__(
+        self,
+        year: int,
+        location: vText = ZONE_B,
+        ics_calendar: str = "Zone-A-B-C-Corse.ics",
+    ) -> None:
+        """Initialise le calendrier
 
-    def __init__(self, school_year):
-        """Creates the class
-
-        :param school_year: Starting year for the school year
-        :type school_year: int
+        :param year: Année scolaire
+        :type year: int
+        :param location: Zone académique, defaults to ZONE_B
+        :type location: vText, optional
+        :param ics_calendar: Calendrier scolaire au format ICS, defaults to "Zone-A-B-C-Corse.ics"
+        :type ics_calendar: str, optional
         """
+        self.now = datetime.now()
+        self.year = year
+        self.location = location
+        self.ics_calendar = ics_calendar
+        self.events = self._get_zone_events(self._load_calendar_file())
+        self.start = self._get_school_start()
+        self.end = self._get_school_end()
+        self.all_year = self._get_all_school_year()
 
-        # Initialize school calendar
-        school_calendar = {}
+        self.holidays = self._get_holidays()
+        self.dt_periods = self._get_periods()
+        self.periods = self._format_periods(self.dt_periods)
+        self.bookable_cantine = self._list_bookable_cantine()
+        self.bookable_garderie = self._list_bookable_garderie()
+        self.calendar = self._create_calendar()
 
-        # Get holidays from National Education Ministry
-        with open("Calendrier_Scolaire_Zone_B.ics", "r") as cal:
-            edu_calendar = icsCalendar(cal.read())
+    def _load_calendar_file(self) -> Calendar:
+        """Charge le fichier ICS
 
-        # Initialize days off ICS calendar
-        days_off_school = icsCalendar()
+        :return: calendrier scolaire
+        :rtype: Calendar
+        """
+        with open(self.ics_calendar, "rb") as calendar_file:
+            return Calendar.from_ical(calendar_file.read())
 
-        # Define begin/end of the school year we are in
-        for event in edu_calendar.events:
-            if (
-                "Rentrée scolaire des élèves" in event.name
-                and event.begin.year == school_year
-            ):
-                school_begin = event.begin
-                continue
-            if "Vacances d'été" in event.name and event.begin.year == school_year + 1:
-                school_end = event.begin
-                days_off_school.events.add(event)
-                continue
+    def _get_all_school_year(self) -> List[datetime]:
+        """L'ensemble des dates de l'années scolaire, en commençant par un Lundi
 
-        # Add events between begin and end of school year
-        # First add school holidays, starting the day after the beginning
-        for event in edu_calendar.events:
-            if event.begin > school_begin and event.begin < school_end:
-                # Remove 1s to end so that it does not overrides next day
-                event._end_time = event._end_time.shift(seconds=-1)
-                days_off_school.events.add(event)
+        :return: liste des dates
+        :rtype: List[datetime]
+        """
+        start = self.start
+        while start.weekday() != 0:
+            start -= timedelta(days=1)
+        return self._get_date_range(start, self.end)
 
-        # Then take holidays from workalendar
-        calendar = France()
-        for year in [school_year, school_year + 1]:
-            for day_off in calendar.holidays(year):
-                begin = day_off[0]
-                event = Event(day_off[1], begin)
-                event.make_all_day()
-                if event.begin > school_begin and event.begin < school_end:
-                    # Remove 1s to end so that it does not overrides next day
-                    event.end = event.end.shift(seconds=-1)
-                    days_off_school.events.add(event)
+    def _is_in_period(self, event: Event) -> bool:
+        """Définit si une date est dans une période donnée
 
-        # Create timeline object
-        timeline = days_off_school.timeline
+        :param event: Evenement du calendrier
+        :type event: Event
+        :return: résultat
+        :rtype: bool
+        """
+        start_date = event["DTSTART"].dt
+        year = start_date.year
+        month = start_date.month
+        return (month >= 7 and year == self.year) or (
+            month <= 7 and year == self.year + 1
+        )
 
-        def get_last_tue(date):
-            while date.weekday() != 1:
-                date = date.shift(days=-1)
-            return date
+    def _check_location(self, event: Event) -> bool:
+        """Vérifie si un évènement est dans la zone définie
 
-        def set_end(date):
-            return date.replace(hour=16, minute=30, second=0, microsecond=0)
+        :param event: Evenement du calendrier
+        :type event: Event
+        :return: résultat
+        :rtype: bool
+        """
+        return "LOCATION" in event.keys() and event["LOCATION"] == self.location
 
-        # Now create dict of all days of school year and status
-        # ordered by week number
-        current = school_begin
-        while int(current.strftime("%w")) > 1:
-            current = current.shift(days=-1)
-        while current < school_end:
-            day = current.strftime("%d")
-            week_number = current.isocalendar()[1]
-            if week_number not in school_calendar.keys():
-                school_calendar[week_number] = []
-                current_week = school_calendar[week_number]
+    def _get_zone_events(self, cal: Calendar) -> List[Event]:
+        """Récupère les évènements liés à la zone définie
 
-            # Limite cantine
-            limit = set_end(
-                get_last_tue(
-                    current.shift(weeks=-1) if current.weekday() >= 1 else current
-                )
+        :param cal: Calendrier
+        :type cal: Calendar
+        :return: liste des évènements
+        :rtype: List[Event]
+        """
+        return [
+            event
+            for event in cal.subcomponents
+            if self._check_location(event)
+            and self._is_in_period(event)
+            and "Enseignants" not in event["DESCRIPTION"]
+        ]
+
+    def _get_school_start(self) -> datetime:
+        """Renvoie la date de la rentrée
+
+        :return: date de la rentrée
+        :rtype: datetime
+        """
+        return self.events[0]["DTEND"].dt
+
+    def _get_school_end(self) -> datetime:
+        """Renvoie la date de fin des cours pour les élèves
+
+        :return: date de fin
+        :rtype: datetime
+        """
+        return self.events[-1]["DTSTART"].dt - timedelta(days=1)
+
+    def _get_feries(self) -> List[datetime]:
+        """Renvoie la liste des jours fériés de l'année x et de l'année x +1
+
+        :return: liste des jours fériés
+        :rtype: List[datetime]
+        """
+        days = []
+        for year in (self.year, self.year + 1):
+            days += [_[0] for _ in France().holidays(year)]
+        self.feries = days
+        return days
+
+    def _get_non_class_days(self) -> List[datetime]:
+        """Renvoie la liste des jours sans classe
+        (par exemple, Mercredi, Samedi et Dimanche)
+
+        :return: liste des jours sans classe
+        :rtype: List[datetime]
+        """
+        return [_ for _ in self.all_year if _.weekday() in NO_CLASS]
+
+    def _get_off_days(self) -> List[datetime]:
+        """Renvoie la liste complète des jours sans classe et fériés
+
+        :return: jours non travaillés
+        :rtype: List[datetime]
+        """
+        return self._get_feries() + self._get_non_class_days()
+
+    def _get_date_range(self, start: datetime, end: datetime) -> List[datetime]:
+        """Renvoie toutes les dates entre start et end
+
+        :param start: date de début
+        :type start: datetime
+        :param end: date de fin
+        :type end: datetime
+        :return: liste des dates
+        :rtype: List[datetime]
+        """
+        return [start + timedelta(days=x) for x in range((end - start).days + 1)]
+
+    def _get_holidays(self) -> List[datetime]:
+        """Renvoie toutes les dates non travaillées
+
+        :return: liste des dates
+        :rtype: List[datetime]
+        """
+        start = self.events[0]["DTEND"].dt - timedelta(days=1)
+        holidays = [
+            _ for _ in self._get_date_range(self.start - timedelta(days=10), start)
+        ]
+        for holiday in self.events[1:]:
+            holidays += self._get_date_range(
+                holiday["DTSTART"].dt,
+                holiday["DTEND"].dt
+                if holiday["DTEND"]
+                else holiday["DTSTART"].dt - timedelta(days=1),
             )
-            past_cantine = arrow.now() > limit
-            past_garderie = current < arrow.now()
-            month = current.strftime("%B").capitalize()
-            data = {"day": day, "month": month, "date": current.strftime("%Y%m%d")}
-            # If one of these is past, then save immediately
-            data["bookable_cantine"] = not past_cantine
-            data["bookable_garderie"] = not past_garderie
-            if not data["bookable_cantine"] and not data["bookable_garderie"]:
-                current_week.append(data)
-                current = current.shift(days=+1)
-                continue
-            if current.isoweekday() in NON_WORKING_DAYS or current.isoweekday() in [
-                6,
-                7,
-            ]:
-                data["bookable_cantine"] = False
-                data["bookable_garderie"] = False
-                data["bookable"] = False
-                current_week.append(data)
-            elif len([i for i in timeline.at(current)]) > 0:
-                data["bookable_cantine"] = False
-                data["bookable_garderie"] = False
-                data["bookable"] = False
-                current_week.append(data)
-            elif current < school_begin:
-                data["bookable_cantine"] = False
-                data["bookable_garderie"] = False
-                data["bookable"] = False
-                current_week.append(data)
-            else:
-                data["bookable"] = True
-                current_week.append(data)
-            current = current.shift(days=+1)
-        # Create set of periods
-        i = 1
-        periods = {
-            i: {
-                "begin": school_begin.format("YYYYMMDD"),
-                "begin_pretty": school_begin.format("DD/MM/YYYY"),
+        holidays += self._get_off_days()
+        return holidays
+
+    def _pretty_date(self, date: datetime, format: str = r"%d/%m/%Y") -> str:
+        """Renvoie la date au format DD/MM/YYYY
+
+        :param date: date
+        :type date: datetime
+        :param format: format de date, defaults to r"%d/%m/%Y"
+        :type format: str, optional
+        :return: date
+        :rtype: str
+        """
+        return date.strftime(format)
+
+    def _basic_date(self, date: datetime, format: str = r"%Y%m%d") -> str:
+        """Renvoie la date au format YYYYMMDD
+
+        :param date: date
+        :type date: datetime
+        :param format: format de date, defaults to r"%Y%m%d"
+        :type format: str, optional
+        :return: date
+        :rtype: str
+        """
+        return date.strftime(format)
+
+    def _format_month(self, date: datetime) -> str:
+        """Renvoie le mois au format long et en Français
+        Janvier, Février etc...
+
+        :param date: date
+        :type date: datetime
+        :return: nom du mois
+        :rtype: str
+        """
+        return date.strftime(r"%B").capitalize()
+
+    def _format_periods(self, periods: dict) -> dict:
+        """Formate les périodes dans un dictionnaire
+
+        :param periods: dictionnaire des périodes au format datetime
+        :type periods: dict
+        :return: dictionnaire formaté
+        :rtype: dict
+        """
+        return {
+            period: {
+                "begin": self._basic_date(periods[period][0]),
+                "begin_pretty": self._pretty_date(periods[period][0]),
+                "end": self._basic_date(periods[period][-1]),
+                "end_pretty": self._pretty_date(periods[period][-1]),
             }
+            for period in periods
+            if periods[period]
         }
-        for event in sorted(edu_calendar.events):
-            if event.begin < school_begin:
-                continue
-            if event.begin > school_end:
-                continue
-            if "Vacances" in event.name:
-                periods[i]["end"] = event.begin.format("YYYYMMDD")
-                periods[i]["end_pretty"] = event.begin.format("DD/MM/YYYY")
-                i += 1
-                periods[i] = {
-                    "begin": event.end.format("YYYYMMDD"),
-                    "begin_pretty": event.end.format("DD/MM/YYYY"),
-                }
-        periods.pop(i)
-        self.periods = periods
-        self.calendar = school_calendar
+
+    def _init_periods(self, start: int) -> Tuple[int, dict]:
+        """Initialise le dictionnaire des périodes
+
+        :param start: jour de la rentrée
+        :type start: int
+        :return: périodes
+        :rtype: Tuple[int, dict]
+        """
+        period = 1
+        return {period: [self.all_year[start]]}
+
+    def _get_periods(self):
+        first_day = next(idx for idx, _ in enumerate(self.all_year) if _ == self.start)
+        period = 1
+        periods = self._init_periods(first_day)
+        in_holiday = False
+        for day in self.all_year[first_day:]:
+            if day not in self.holidays:
+                in_holiday = False
+                periods[period].append(day)
+            elif day.weekday() not in NO_CLASS and day not in self.feries:
+                if not in_holiday:
+                    period += 1
+                    periods[period] = []
+                    in_holiday = True
+        return periods
+
+    def _get_week_number(self, date: datetime) -> str:
+        return str(date.isocalendar()[1])
+
+    def _init_calendar(self) -> Dict[str, list]:
+        return {
+            week_number: []
+            for week_number in [self._get_week_number(_) for _ in self.all_year]
+        }
+
+    def _next_tue(self) -> datetime:
+        date = self.now
+        if date.weekday() == 1 and date.time() > time(HOUR_LIMIT, MIN_LIMIT):
+            date = date + timedelta(days=1)
+        while date.weekday() != 1:
+            date = date + timedelta(days=1)
+        return date
+
+    def _set_time(
+        self, date: datetime, hour: int = HOUR_LIMIT, minute: int = MIN_LIMIT
+    ) -> datetime:
+        return datetime.combine(date, time(hour, minute))
+
+    def _define_cantine_limit_reservation(self) -> datetime:
+        return self._set_time(self._next_tue())
+
+    def _list_bookable_cantine(self):
+        limit = self._define_cantine_limit_reservation()
+        starting_day = (limit + timedelta(days=6)).date()
+        return [
+            _ for _ in self.all_year if _ >= starting_day and _ not in self.holidays
+        ]
+
+    def _is_bookable_cantine(self, date: datetime) -> bool:
+        return date in self.bookable_cantine
+
+    def _list_bookable_garderie(self):
+        return [
+            _
+            for _ in self.all_year
+            if _ > self.now.date()
+            if _ > self.now.date() and _ not in self.holidays
+        ]
+
+    def _is_bookable_garderie(self, date: datetime) -> bool:
+        return date in self.bookable_garderie
+
+    def _define_day_parameters(self, date: datetime) -> Dict:
+        return {
+            "day": str(date.day),
+            "month": self._format_month(date),
+            "date": self._basic_date(date),
+            "bookable_cantine": self._is_bookable_cantine(date),
+            "bookable_garderie": self._is_bookable_garderie(date),
+        }
+
+    def _create_calendar(self) -> Dict[str, list]:
+        calendar = self._init_calendar()
+        for date in self.all_year:
+            week_number = self._get_week_number(date)
+            calendar[week_number].append(self._define_day_parameters(date))
+        return calendar

@@ -1,23 +1,24 @@
 import random
 import string
 from pprint import pprint as pp  # noqa
-import arrow
 
-from flask import flash, redirect, render_template, request, url_for, send_file
+import arrow
+from docx import Document
+from flask import flash, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
 from app import app, db
+from app.calendar import CantinaCalendar as Calendar
+from app.calendar import getBookedData
+from app.export import create_xls
 from app.forms import LoginForm, UserAddForm, UserModForm
 from app.models import (
-    User,
     BookingCantine,
     BookingGarderieMatin,
     BookingGarderieSoir,
     Configuration,
+    User,
 )
-from app.calendar import Calendar, getBookedData
-from app.export import create_xls
-from docx import Document
 
 CATEGORIES = {
     "cantine": BookingCantine,
@@ -25,19 +26,20 @@ CATEGORIES = {
     "garderie_soir": BookingGarderieSoir,
 }
 
-
-calendar = Calendar(2020)
+YEAR = 2021
+calendar = Calendar(YEAR)
 
 
 @app.context_processor
 def import_app_config():
-    app_config = {}
-    for i in db.session.query(Configuration).order_by("config_order"):
-        app_config[i.config_key] = {
+    app_config = {
+        i.config_key: {
             "order": i.config_order,
             "text": i.config_text,
             "value": i.value,
         }
+        for i in db.session.query(Configuration).order_by("config_order")
+    }
     return dict(app_config=app_config)
 
 
@@ -92,10 +94,12 @@ def admin():
                 letters = string.ascii_lowercase
                 password = "".join(random.choice(letters) for i in range(10))
                 u.set_password(password)
-                document.add_paragraph(f"Voici vos informations pour accéder à Cantina :\n"
-                                       "Adresse du site : https://cantina.sivu-2vallees.fr/\n"
-                                       f"Nom d'utilisateur : {u.username}\n"
-                                       f"Mot de passe : {password}\n")
+                document.add_paragraph(
+                    f"Voici vos informations pour accéder à Cantina :\n"
+                    "Adresse du site : https://cantina.sivu-2vallees.fr/\n"
+                    f"Nom d'utilisateur : {u.username}\n"
+                    f"Mot de passe : {password}\n"
+                )
                 db.session.add(u)
                 db.session.commit()
             document.save("/tmp/Liste.docx")
@@ -115,26 +119,19 @@ def admin():
         elif request.method == "POST":
             if form.validate_on_submit():
                 new_password = request.form["userpass"]
-                print(len(new_password))
                 if (
                     "delete_user" in request.form.keys()
                     and request.form["delete_user"] == "y"
                 ):
                     flash("Pas encore supporté !")
                 elif len(new_password) > 6:
-                    print("dans la fonction pass")
                     user_name = request.args["user"]
-                    print(user_name)
                     user = User.query.filter(User.username == user_name).all()[0]
-                    print(user.name)
                     user.set_password(new_password)
-                    print("pass chang")
                     db.session.add(user)
                     db.session.commit()
-                    print("commit fait")
                     flash(f"Mot de passe mis à jour pour {user.username}")
                 else:
-                    print("mdp incorrect")
                     flash("Le mot de passe doit faire au minimum 6 caractères")
                 return redirect(request.referrer)
     elif category == "users_del":
@@ -150,42 +147,41 @@ def admin():
             return render_template(
                 "admin.html", category=category, periods=calendar.periods
             )
-        else:
-            if "period" not in request.form.keys():
-                flash("Veuillez sélectionner une période")
-                return render_template(
-                    "admin.html", category=category, periods=calendar.periods
-                )
-            if "booking_type" not in request.form.keys():
-                flash("Veuillez sélectionner un type de réservation")
-                return render_template(
-                    "admin.html", category=category, periods=calendar.periods
-                )
-            period = int(request.form.get("period"))
-            date_begin = arrow.get(calendar.periods[period]["begin"], "YYYYMMDD")
-            date_end = arrow.get(calendar.periods[period]["end"], "YYYYMMDD")
-            data = {}
-            booking = CATEGORIES[request.form.get("booking_type")].query.all()
-            for db_line in booking:
-                for date_str in db_line.booked.split():
-                    date = arrow.get(date_str, "YYYYMMDD")
-                    if date_begin < date < date_end:
-                        date_string = date.format("YYYY-MM-DD")
-                        if date_string not in data.keys():
-                            data[date_string] = []
-                        data[date_string].append(db_line.username)
-            if data == {}:
-                flash("Aucune donnée pour la période demandée")
-                return render_template(
-                    "admin.html", category=category, periods=calendar.periods
-                )
-            create_xls(data)
-            cat = request.form.get("booking_type")
-            return send_file(
-                "/tmp/workbook.xlsx",
-                attachment_filename=f"Réservations_{cat}_période_{period}.xlsx",
-                as_attachment=True,
+        if "period" not in request.form.keys():
+            flash("Veuillez sélectionner une période")
+            return render_template(
+                "admin.html", category=category, periods=calendar.periods
             )
+        if "booking_type" not in request.form.keys():
+            flash("Veuillez sélectionner un type de réservation")
+            return render_template(
+                "admin.html", category=category, periods=calendar.periods
+            )
+        period = int(request.form.get("period"))
+        date_begin = arrow.get(calendar.periods[period]["begin"], "YYYYMMDD")
+        date_end = arrow.get(calendar.periods[period]["end"], "YYYYMMDD")
+        data = {}
+        booking = CATEGORIES[request.form.get("booking_type")].query.all()
+        for db_line in booking:
+            for date_str in db_line.booked.split():
+                date = arrow.get(date_str, "YYYYMMDD")
+                if date_begin < date < date_end:
+                    date_string = date.format("YYYY-MM-DD")
+                    if date_string not in data.keys():
+                        data[date_string] = []
+                    data[date_string].append(db_line.username)
+        if data == {}:
+            flash("Aucune donnée pour la période demandée")
+            return render_template(
+                "admin.html", category=category, periods=calendar.periods
+            )
+        create_xls(data)
+        cat = request.form.get("booking_type")
+        return send_file(
+            "/tmp/workbook.xlsx",
+            attachment_filename=f"Réservations_{cat}_période_{period}.xlsx",
+            as_attachment=True,
+        )
     elif category == "configuration":
         if request.method == "GET":
             data = db.session.query(Configuration).order_by("config_order")
@@ -214,25 +210,16 @@ def admin():
                         day = arrow.now().shift(days=+1).format("YYYYMMDD")
                     args["day"] = day
                     if "cantine" in item:
-                        booked = []
                         data = db.session.query(BookingCantine)
-                        for d in data.all():
-                            if day in d.booked:
-                                booked.append(d.username)
+                        booked = [d.username for d in data.all() if day in d.booked]
                         args["book_cantine"] = booked
                     elif "garderie" in item:
                         booked = {}
                         data = db.session.query(BookingGarderieMatin)
-                        book = []
-                        for d in data.all():
-                            if day in d.booked:
-                                book.append(d.username)
+                        book = [d.username for d in data.all() if day in d.booked]
                         booked["Garderie Matin"] = book
                         data = db.session.query(BookingGarderieSoir)
-                        book = []
-                        for d in data.all():
-                            if day in d.booked:
-                                book.append(d.username)
+                        book = [d.username for d in data.all() if day in d.booked]
                         booked["Garderie Soir"] = book
                         args["book_garderie"] = booked
 
@@ -242,7 +229,7 @@ def admin():
 @app.route("/booking", methods=["GET"])
 @login_required
 def booking():
-    calendar = Calendar(2020)
+    calendar = Calendar(YEAR)
     category = request.args["cat"]
     booking_type = CATEGORIES[category]
     booked = getBookedData(booking_type, current_user.name)
@@ -262,7 +249,7 @@ def booking():
 @app.route("/booking", methods=["POST"])
 @login_required
 def savebooking():
-    calendar = Calendar(2020)
+    calendar = Calendar(YEAR)
     today = int(arrow.now().strftime("%Y%m%d"))
     category = request.args["cat"]
     booking_type = CATEGORIES[category]
@@ -272,7 +259,9 @@ def savebooking():
         data = []
         for b in booked:
             current = arrow.get(b, "YYYYMMDD")
-            day = next(d for d in calendar.calendar[current.week] if d["date"] == b)
+            day = next(
+                d for d in calendar.calendar[str(current.week)] if d["date"] == b
+            )
             if not day["bookable_cantine"] and category == "cantine":
                 data.append(b)
             if not day["bookable_garderie"] and category in [
@@ -326,14 +315,8 @@ def booking_admin():
     if current_user != "admin":
         redirect("/logout")
     userlist = [u.name for u in User.query.filter(User.username != "admin").all()]
-    if "user" not in request.args.keys():
-        selected_user = None
-    else:
-        selected_user = request.args["user"]
-    if "cat" not in request.args.keys():
-        category = "cantine"
-    else:
-        category = request.args["cat"]
+    selected_user = request.args["user"] if "user" in request.args.keys() else None
+    category = request.args["cat"] if "cat" in request.args.keys() else "cantine"
     if not selected_user:
         return render_template(
             "booking_admin.html",
@@ -341,18 +324,17 @@ def booking_admin():
             booking_type=category,
             userlist=userlist,
         )
-    else:
-        booked = getBookedData(CATEGORIES[category], selected_user)
-        current_week = arrow.utcnow().isocalendar()[1]
-        return render_template(
-            "booking_admin.html",
-            selected_user=selected_user,
-            calendar=calendar.calendar,
-            booking_type=category,
-            current_week=current_week,
-            booked=booked,
-            userlist=userlist,
-        )
+    booked = getBookedData(CATEGORIES[category], selected_user)
+    current_week = arrow.utcnow().isocalendar()[1]
+    return render_template(
+        "booking_admin.html",
+        selected_user=selected_user,
+        calendar=calendar.calendar,
+        booking_type=category,
+        current_week=current_week,
+        booked=booked,
+        userlist=userlist,
+    )
 
 
 @app.route("/booking_admin", methods=["POST"])

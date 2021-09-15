@@ -51,9 +51,10 @@ TatSu = "*"
 Werkzeug = "*"
 WTForms = "*"
 XlsxWriter = "*"
+icalendar = "*"
 
 [requires]
-python_version = "3.8"
+python_version = "3"
 
 [scripts]
 init_db = "bash init_db.sh"
