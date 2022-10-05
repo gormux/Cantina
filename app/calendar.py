@@ -1,12 +1,13 @@
 import locale
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, date
 from typing import Dict, List, Tuple
+import re
 
 from icalendar import Calendar, Event, vText
 from workalendar.europe import France
 
 locale.setlocale(locale.LC_ALL, "fr_FR.UTF-8")
-ZONE_B = vText(b"Zone B")
+ZONE_B = r"Zones?.*B"
 HOUR_LIMIT, MIN_LIMIT = (16, 30)
 NO_CLASS = [2, 5, 6]
 
@@ -94,7 +95,7 @@ class CantinaCalendar:
         :return: résultat
         :rtype: bool
         """
-        return "LOCATION" in event.keys() and event["LOCATION"] == self.location
+        return "LOCATION" in event.keys() and re.match(self.location, event["LOCATION"])
 
     def _get_zone_events(self, cal: Calendar) -> List[Event]:
         """Récupère les évènements liés à la zone définie
@@ -109,7 +110,7 @@ class CantinaCalendar:
             for event in cal.subcomponents
             if self._check_location(event)
             and self._is_in_period(event)
-            and "Enseignants" not in event["DESCRIPTION"]
+            and "Enseignants" not in event["SUMMARY"]
         ]
 
     def _get_school_start(self) -> datetime:
@@ -118,7 +119,7 @@ class CantinaCalendar:
         :return: date de la rentrée
         :rtype: datetime
         """
-        return self.events[0]["DTEND"].dt
+        return self.events[0]["DTEND"].dt - timedelta(days=1)
 
     def _get_school_end(self) -> datetime:
         """Renvoie la date de fin des cours pour les élèves
@@ -126,7 +127,7 @@ class CantinaCalendar:
         :return: date de fin
         :rtype: datetime
         """
-        return self.events[-1]["DTSTART"].dt - timedelta(days=1)
+        return self.events[-1]["DTSTART"].dt# - timedelta(days=1)
 
     def _get_feries(self) -> List[datetime]:
         """Renvoie la liste des jours fériés de l'année x et de l'année x +1
@@ -295,23 +296,41 @@ class CantinaCalendar:
     def _define_cantine_limit_reservation(self) -> datetime:
         return self._set_time(self._next_tue())
 
+    def _adjust_workdays(self, l):
+        add = [
+                date(2022, 9, 1),
+                date(2022, 11, 7),
+                date(2023, 1, 3),
+                date(2023, 2, 27),
+                date(2023, 5, 2),
+        ]
+        for d in add:
+            if d > self.now.date():
+                l.append(d)
+        l.remove(date(2023, 5, 19))
+        return l
+
     def _list_bookable_cantine(self):
         limit = self._define_cantine_limit_reservation()
         starting_day = (limit + timedelta(days=6)).date()
-        return [
+        l= [
             _ for _ in self.all_year if _ >= starting_day and _ not in self.holidays
         ]
+        l = self._adjust_workdays(l)
+        return l
 
     def _is_bookable_cantine(self, date: datetime) -> bool:
         return date in self.bookable_cantine
 
     def _list_bookable_garderie(self):
-        return [
+        l = [
             _
             for _ in self.all_year
             if _ > self.now.date()
             if _ > self.now.date() and _ not in self.holidays
         ]
+        l = self._adjust_workdays(l)
+        return(l)
 
     def _is_bookable_garderie(self, date: datetime) -> bool:
         return date in self.bookable_garderie

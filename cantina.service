@@ -1,0 +1,13 @@
+[Unit]
+Description=Cantina
+After=syslog.target network.target
+[Service]
+Type=simple
+User=rpi
+Group=rpi
+Restart=always
+RestartSec=3
+WorkingDirectory=/home/rpi/cantina
+ExecStart=/srv/http/.local/bin/pipenv run server
+[Install]
+WantedBy=multi-user.target

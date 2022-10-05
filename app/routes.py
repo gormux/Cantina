@@ -26,9 +26,8 @@ CATEGORIES = {
     "garderie_soir": BookingGarderieSoir,
 }
 
-YEAR = 2021
+YEAR = 2022
 calendar = Calendar(YEAR)
-
 
 @app.context_processor
 def import_app_config():
@@ -255,6 +254,7 @@ def booking():
 def savebooking():
     calendar = Calendar(YEAR)
     today = int(arrow.now().strftime("%Y%m%d"))
+    # today = 20221022
     category = request.args["cat"]
     booking_type = CATEGORIES[category]
     booked = getBookedData(booking_type, current_user.name)
@@ -307,9 +307,12 @@ def savebooking():
     if not results:
         db.session.add(new_data)
     else:
+        data = " ".join(sorted({}.fromkeys(data.split())))
         update_data = f'UPDATE booking_{category} SET booked = "{data}" WHERE username = "{current_user.name}"'
         db.session.execute(update_data)
     db.session.commit()
+    #with open("/tmp/reservations.log", "a") as logfile:
+    #    logfile.write(update_data + "\n")
     return redirect("/booking?cat=%s" % category)
 
 
