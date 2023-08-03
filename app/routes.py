@@ -26,8 +26,9 @@ CATEGORIES = {
     "garderie_soir": BookingGarderieSoir,
 }
 
-YEAR = 2022
+YEAR = 2023
 calendar = Calendar(YEAR)
+
 
 @app.context_processor
 def import_app_config():
@@ -91,7 +92,7 @@ def admin():
                 u.name = user.replace("\n\r", "").strip()
                 u.username = user.strip().replace(" ", "_").replace("\n\r", "")
                 letters = string.ascii_lowercase
-                password = "".join(random.choice(letters) for i in range(10))
+                password = "".join(random.choice(letters) for _ in range(10))
                 u.set_password(password)
                 document.add_paragraph(
                     f"Voici vos informations pour accéder à Cantina :\n"
@@ -143,7 +144,7 @@ def admin():
                 to_delete = db.session.query(User).filter(User.username == user).first()
                 db.session.delete(to_delete)
             db.session.commit()
-        userlist = [u for u in User.query.filter(User.username != "admin").all()]
+        userlist = list(User.query.filter(User.username != "admin").all())
         return render_template("admin.html", category=category, userlist=userlist)
     elif category == "export":
         if request.method == "GET":
@@ -173,7 +174,7 @@ def admin():
                     if date_string not in data.keys():
                         data[date_string] = []
                     data[date_string].append(db_line.username)
-        if data == {}:
+        if not data:
             flash("Aucune donnée pour la période demandée")
             return render_template(
                 "admin.html", category=category, periods=calendar.periods
@@ -217,10 +218,9 @@ def admin():
                         booked = [d.username for d in data.all() if day in d.booked]
                         args["book_cantine"] = booked
                     elif "garderie" in item:
-                        booked = {}
                         data = db.session.query(BookingGarderieMatin)
                         book = [d.username for d in data.all() if day in d.booked]
-                        booked["Garderie Matin"] = book
+                        booked = {"Garderie Matin": book}
                         data = db.session.query(BookingGarderieSoir)
                         book = [d.username for d in data.all() if day in d.booked]
                         booked["Garderie Soir"] = book
@@ -288,7 +288,7 @@ def savebooking():
     elif "selectnone" in request.form.keys():
         data = keep_passed_bookings()
     else:
-        data = keep_passed_bookings() + [k for k in request.form.keys()]
+        data = keep_passed_bookings() + list(request.form.keys())
     delay = 1 if "garderie" in category else 2
     for day in booked:
         if int(day) < today + delay:
@@ -303,7 +303,7 @@ def savebooking():
     q = db.session.execute(
         f'SELECT * FROM booking_{category} WHERE username = "{current_user.name}";'
     )
-    results = [v for v in q.fetchall()]
+    results = list(q.fetchall())
     if not results:
         db.session.add(new_data)
     else:
@@ -311,9 +311,7 @@ def savebooking():
         update_data = f'UPDATE booking_{category} SET booked = "{data}" WHERE username = "{current_user.name}"'
         db.session.execute(update_data)
     db.session.commit()
-    #with open("/tmp/reservations.log", "a") as logfile:
-    #    logfile.write(update_data + "\n")
-    return redirect("/booking?cat=%s" % category)
+    return redirect(f"/booking?cat={category}")
 
 
 @app.route("/booking_admin", methods=["GET"])
@@ -352,19 +350,18 @@ def savebooking_admin():
     category = request.args["cat"]
     user = request.args["user"]
     booking_type = CATEGORIES[category]
-    data = [k for k in request.form.keys()]
+    data = list(request.form.keys())
     data = " ".join(sorted(data))
     new_data = booking_type(username=user, booked=data)
     q = db.session.execute(
         f'SELECT * FROM booking_{category} WHERE username = "{user}";'
     )
-    results = [v for v in q.fetchall()]
-    if not results:
-        db.session.add(new_data)
-    else:
+    if _ := list(q.fetchall()):
         update_data = (
             f'UPDATE booking_{category} SET booked = "{data}" WHERE username = "{user}"'
         )
         db.session.execute(update_data)
+    else:
+        db.session.add(new_data)
     db.session.commit()
-    return redirect("/booking_admin?cat=%s&user=%s" % (category, user))
+    return redirect(f"/booking_admin?cat={category}&user={user}")

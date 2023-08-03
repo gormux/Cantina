@@ -1,8 +1,9 @@
 import datetime
+from string import ascii_uppercase
 
 import xlsxwriter
 
-alphabet = list("abcdefghijklmnopqrstuvwxyz".upper())
+alphabet = list(ascii_uppercase) + [letter1+letter2 for letter1 in ascii_uppercase for letter2 in ascii_uppercase]
 
 
 def create_xls(booking_data):
